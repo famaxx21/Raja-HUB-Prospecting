@@ -98,29 +98,43 @@ end
 H.doShakePan = function()
 	H.equipPan()
 	task.wait(H.TELEPORT_SYNC_WAIT)
+
 	local remotes = H.findPanRemotes()
 	if not remotes.Shake or not remotes.Pan then
 		return false, "Shake/Pan not found"
 	end
+
+	-- Retry Pan trigger sampai return true.
 	local triggerOk = false
 	for i = 1, H.PAN_TRIGGER_MAX_ATTEMPTS do
 		local ok, res = pcall(function() return remotes.Pan:InvokeServer() end)
 		if ok and res == true then triggerOk = true break end
 		task.wait(H.PAN_TRIGGER_RETRY_DELAY)
 	end
-	if not triggerOk then return false, "Pan trigger failed" end
+	if not triggerOk then
+		H.log("❌ Pan trigger failed after " .. H.PAN_TRIGGER_MAX_ATTEMPTS .. " attempts")
+		return false, "Pan trigger failed"
+	end
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	local clicks = 0
-	while S.running and clicks < H.SHAKE_MAX_CLICKS do
+	-- Spam Shake TANPA BATAS sampai fill = 0. Cek fill tiap 1 detik.
+	local lastCheck = tick()
+	local clickCount = 0
+
+	while S.running do
 		pcall(function() remotes.Shake:FireServer() end)
-		clicks = clicks + 1
+		clickCount = clickCount + 1
 		task.wait(H.SHAKE_DELAY)
-		if clicks % H.SHAKE_CHECK_INTERVAL == 0 then
+
+		-- Cek fill tiap 1 detik.
+		if tick() - lastCheck >= 1 then
+			lastCheck = tick()
 			local c, _ = H.getFill()
 			if c == 0 then break end
 		end
 	end
+
+	H.log("Shake done: " .. clickCount .. " fires")
 	if remotes.Collect then pcall(function() remotes.Collect:InvokeServer() end) end
 	task.wait(0.1)
 	return true
