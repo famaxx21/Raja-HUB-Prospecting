@@ -1,7 +1,7 @@
 -- ==========================================
 -- 👑 RAJA HUB — FARM
 -- Auto Pan + Forever Pack Claim.
--- Exploit: trigger Pan → Shake 1x → unequip → TP sand → equip.
+-- Shake: trigger Pan → fill turun → unequip/equip cepat → spam.
 -- ==========================================
 
 local H = shared.RajaHub
@@ -114,7 +114,7 @@ H.doFillPan = function()
 end
 
 -- ==========================================
--- SHAKE — TRIGGER PAN → SHAKE 1x → UNEQUIP
+-- SHAKE — TRIGGER PAN → UNEQUIP/EQUIP → SPAM
 -- ==========================================
 H.doShakePan = function()
 	H.equipPan()
@@ -150,17 +150,15 @@ H.doShakePan = function()
 	H.log("Pan trigger OK (" .. attempts .. " attempts)")
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	-- 2. Simpan fill awal.
+	-- 2. Fire Shake 1x-1x sampai fill mulai turun.
 	local fillBefore = select(1, H.getFill())
 	H.log("Fill before: " .. tostring(fillBefore))
 
-	-- 3. Fire Shake 1x-1x sampai fill mulai turun.
-	local started = false
 	local t0 = tick()
+	local started = false
 	for i = 1, 20 do
 		pcall(function() remotes.Shake:FireServer() end)
 		task.wait(0.03)
-
 		local c = select(1, H.getFill())
 		if c and fillBefore and c < fillBefore then
 			started = true
@@ -170,25 +168,58 @@ H.doShakePan = function()
 	end
 
 	if not started then
-		H.log("⚠️ Fill not dropping after 20 fires")
+		H.log("⚠️ Fill not dropping after 20 fires — lanjut spam tanpa unequip")
 	end
 
-	-- 4. Unequip pan — fill langsung 0.
-	H.log("→ Unequip (fill should go to 0)")
-	if unequipRemote then
+	-- 3. Begitu fill mulai turun → unequip → equip CEPAT (0.01s).
+	if started and unequipRemote and equipRemote then
+		H.log("→ Fast unequip → equip")
 		pcall(function() unequipRemote:FireServer() end)
-	else
-		H.log("⚠️ UnequipRemote not found")
+		task.wait(0.01)
+		pcall(function() equipRemote:FireServer(panTool) end)
+		task.wait(0.01)
 	end
 
-	task.wait(H.SHAKE_POST_UNEQUIP_WAIT)
-	local cAfter = select(1, H.getFill())
-	H.log("Fill after unequip: " .. tostring(cAfter))
+	-- 4. Spam Shake TANPA BATAS (gold™ style).
+	local lastCheck = tick()
+	local clickCount = 0
+	local batchSize = H.SHAKE_BATCH_SIZE or 50
+	local delay = H.SHAKE_DELAY or 0
+
+	while S.running do
+		for _ = 1, batchSize do
+			pcall(function() remotes.Shake:FireServer() end)
+			clickCount = clickCount + 1
+		end
+
+		if delay > 0 then
+			task.wait(delay)
+		else
+			task.wait()
+		end
+
+		if tick() - lastCheck >= H.SHAKE_CHECK_INTERVAL_SEC then
+			lastCheck = tick()
+			local c, _ = H.getFill()
+			if c == 0 then break end
+		end
+	end
 
 	local t1 = tick()
-	H.log(string.format("Shake done in %.2fs", t1 - t0))
+	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	-- 5. Pan tetap UNEQUIPPED — nanti di-equip di runFarmCycle (setelah TP sand).
+	-- 5. Equip pan balik (jaga-jaga).
+	if equipRemote then
+		pcall(function() equipRemote:FireServer(panTool) end)
+	end
+	task.wait(0.2)
+
+	-- 6. Collect final.
+	local remotesAfter = H.findPanRemotes()
+	if remotesAfter.Collect then
+		pcall(function() remotesAfter.Collect:InvokeServer() end)
+	end
+	task.wait(0.1)
 	return true
 end
 
@@ -202,29 +233,23 @@ H.runFarmCycle = function()
 	end
 	H.log("=== Farm cycle #" .. (S.farmCycleCount + 1) .. " ===")
 
-	-- 1. Equip pan, TP sand, fill.
 	H.equipPan()
+
 	H.log("Fill start")
 	H.teleportLocal(S.sandPos)
 	task.wait(H.TP_SAND_WAIT)
 	H.doFillPan()
 	H.log("Fill done")
 
-	-- 2. TP water, shake (unequip di dalam doShakePan).
 	H.log("Shake start")
 	H.teleportLocal(S.waterPos)
 	H.doShakePan()
-	H.log("Shake done (pan unequipped)")
+	H.log("Shake done")
 
-	-- 3. TP balik ke sand.
-	H.log("TP back to sand")
+	-- Setelah shake (fill = 0), langsung TP ke sand.
+	H.log("→ TP back to sand")
 	H.teleportLocal(S.sandPos)
 	task.wait(H.TP_SAND_WAIT)
-
-	-- 4. Equip pan balik buat fill berikutnya.
-	H.log("Equip pan back")
-	H.equipPan()
-	task.wait(0.3)
 
 	S.farmCycleCount = S.farmCycleCount + 1
 	if H.ui.farmCycleLabel then
