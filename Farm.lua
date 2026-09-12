@@ -1,7 +1,7 @@
 -- ==========================================
 -- 👑 RAJA HUB — FARM
 -- Auto Pan + Forever Pack Claim.
--- Shake: trigger Pan → fill turun → unequip/equip cepat → spam.
+-- Shake: trigger Pan → fill turun → spam hotbar 1 → spam shake → TP sand.
 -- ==========================================
 
 local H = shared.RajaHub
@@ -70,14 +70,6 @@ H.findPanRemotes = function()
 	return list
 end
 
-H.getCustomBackpackRemotes = function()
-	local r = H.replicatedStorage:FindFirstChild("Remotes")
-	if not r then return nil, nil end
-	local cb = r:FindFirstChild("CustomBackpack")
-	if not cb then return nil, nil end
-	return cb:FindFirstChild("EquipRemote"), cb:FindFirstChild("UnequipRemote")
-end
-
 H.getFill = function()
 	local pg = H.localPlayer:FindFirstChild("PlayerGui")
 	if not pg then return nil, nil end
@@ -114,25 +106,17 @@ H.doFillPan = function()
 end
 
 -- ==========================================
--- SHAKE — TRIGGER PAN → UNEQUIP/EQUIP → SPAM
+-- SHAKE — TRIGGER PAN → HOTBAR SPAM → SPAM SHAKE
 -- ==========================================
 H.doShakePan = function()
 	H.equipPan()
 	task.wait(H.TELEPORT_SYNC_WAIT)
-
-	local panTool = H.getEquippedPanTool()
-	if not panTool then
-		H.log("❌ No equipped pan")
-		return false, "No pan"
-	end
 
 	local remotes = H.findPanRemotes()
 	if not remotes.Shake or not remotes.Pan then
 		H.log("❌ Shake/Pan not found")
 		return false, "Shake/Pan not found"
 	end
-
-	local equipRemote, unequipRemote = H.getCustomBackpackRemotes()
 
 	-- 1. Trigger Pan sampai return true.
 	local triggerOk = false
@@ -168,19 +152,19 @@ H.doShakePan = function()
 	end
 
 	if not started then
-		H.log("⚠️ Fill not dropping after 20 fires — lanjut spam tanpa unequip")
+		H.log("⚠️ Fill not dropping after 20 fires")
 	end
 
-	-- 3. Begitu fill mulai turun → unequip → equip CEPAT (0.01s).
-	if started and unequipRemote and equipRemote then
-		H.log("→ Fast unequip → equip")
-		pcall(function() unequipRemote:FireServer() end)
-		task.wait(0.01)
-		pcall(function() equipRemote:FireServer(panTool) end)
-		task.wait(0.01)
-	end
+	-- 3. Spam tombol hotbar '1' SEKALI — biar pan toggle equip/unequip.
+	H.log("→ Hotbar key 1 (press + release)")
+	pcall(function()
+		keypress(0x31)   -- VK code for '1'
+		task.wait(0.02)
+		keyrelease(0x31)
+	end)
+	task.wait(0.05)
 
-	-- 4. Spam Shake TANPA BATAS (gold™ style).
+	-- 4. Spam Shake tanpa batas sampai fill = 0.
 	local lastCheck = tick()
 	local clickCount = 0
 	local batchSize = H.SHAKE_BATCH_SIZE or 50
@@ -208,13 +192,7 @@ H.doShakePan = function()
 	local t1 = tick()
 	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	-- 5. Equip pan balik (jaga-jaga).
-	if equipRemote then
-		pcall(function() equipRemote:FireServer(panTool) end)
-	end
-	task.wait(0.2)
-
-	-- 6. Collect final.
+	-- 5. Collect final.
 	local remotesAfter = H.findPanRemotes()
 	if remotesAfter.Collect then
 		pcall(function() remotesAfter.Collect:InvokeServer() end)
@@ -233,20 +211,22 @@ H.runFarmCycle = function()
 	end
 	H.log("=== Farm cycle #" .. (S.farmCycleCount + 1) .. " ===")
 
+	-- 1. Fill — di sand, pan equip.
 	H.equipPan()
-
 	H.log("Fill start")
 	H.teleportLocal(S.sandPos)
 	task.wait(H.TP_SAND_WAIT)
 	H.doFillPan()
 	H.log("Fill done")
 
+	-- 2. TP ke water, shake.
 	H.log("Shake start")
 	H.teleportLocal(S.waterPos)
+	task.wait(H.TP_SAND_WAIT)
 	H.doShakePan()
 	H.log("Shake done")
 
-	-- Setelah shake (fill = 0), langsung TP ke sand.
+	-- 3. Setelah shake (fill = 0), TP langsung ke sand.
 	H.log("→ TP back to sand")
 	H.teleportLocal(S.sandPos)
 	task.wait(H.TP_SAND_WAIT)
