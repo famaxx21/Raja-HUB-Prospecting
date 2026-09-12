@@ -1,7 +1,7 @@
 -- ==========================================
 -- 👑 RAJA HUB — FARM
 -- Auto Pan + Forever Pack Claim.
--- Shake: trigger Pan → fill turun → unequip/equip (Humanoid) → spam shake.
+-- Shake: trigger Pan → spam shake sampai fill 0 → TP sand.
 -- ==========================================
 
 local H = shared.RajaHub
@@ -40,15 +40,6 @@ H.equipPan = function()
 		if hum then hum:EquipTool(target) return true end
 	end
 	return false
-end
-
-H.getEquippedPanTool = function()
-	local char = H.localPlayer.Character
-	if not char then return nil end
-	for _, c in ipairs(char:GetChildren()) do
-		if c:IsA("Tool") and c.Name:lower():find("pan", 1, true) then return c end
-	end
-	return nil
 end
 
 H.findPanRemotes = function()
@@ -106,29 +97,11 @@ H.doFillPan = function()
 end
 
 -- ==========================================
--- SHAKE — TRIGGER PAN → FILL TURUN → UNEQUIP/EQUIP (Humanoid)
+-- SHAKE — TRIGGER PAN → SPAM SAMPAI FILL 0
 -- ==========================================
 H.doShakePan = function()
 	H.equipPan()
 	task.wait(H.TELEPORT_SYNC_WAIT)
-
-	local char = H.localPlayer.Character
-	if not char then
-		H.log("❌ No character")
-		return false, "No char"
-	end
-
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	if not hum then
-		H.log("❌ No Humanoid")
-		return false, "No humanoid"
-	end
-
-	local panTool = H.getEquippedPanTool()
-	if not panTool then
-		H.log("❌ No equipped pan")
-		return false, "No pan"
-	end
 
 	local remotes = H.findPanRemotes()
 	if not remotes.Shake or not remotes.Pan then
@@ -152,39 +125,10 @@ H.doShakePan = function()
 	H.log("Pan trigger OK (" .. attempts .. " attempts)")
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	-- 2. Fire Shake 1x-1x sampai fill mulai turun.
-	local fillBefore = select(1, H.getFill())
-	H.log("Fill before: " .. tostring(fillBefore))
-
-	local t0 = tick()
-	local started = false
-	for i = 1, 20 do
-		pcall(function() remotes.Shake:FireServer() end)
-		task.wait(0.03)
-		local c = select(1, H.getFill())
-		if c and fillBefore and c < fillBefore then
-			started = true
-			H.log("Fill dropping: " .. fillBefore .. " → " .. c .. " (after " .. i .. " fires)")
-			break
-		end
-	end
-
-	if not started then
-		H.log("⚠️ Fill not dropping after 20 fires")
-	end
-
-	-- 3. Unequip + equip cepat pakai Humanoid.
-	if started then
-		H.log("→ Fast unequip → equip (Humanoid)")
-		pcall(function() hum:UnequipTools() end)
-		task.wait(0.01)
-		pcall(function() hum:EquipTool(panTool) end)
-		task.wait(0.01)
-	end
-
-	-- 4. Spam Shake tanpa batas sampai fill = 0.
+	-- 2. Spam Shake tanpa batas sampai fill = 0.
 	local lastCheck = tick()
 	local clickCount = 0
+	local t0 = tick()
 	local batchSize = H.SHAKE_BATCH_SIZE or 50
 	local delay = H.SHAKE_DELAY or 0
 
@@ -210,14 +154,9 @@ H.doShakePan = function()
 	local t1 = tick()
 	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	-- 5. Equip pan balik (jaga-jaga).
-	pcall(function() hum:EquipTool(panTool) end)
-	task.wait(0.2)
-
-	-- 6. Collect final.
-	local remotesAfter = H.findPanRemotes()
-	if remotesAfter.Collect then
-		pcall(function() remotesAfter.Collect:InvokeServer() end)
+	-- 3. Collect final.
+	if remotes.Collect then
+		pcall(function() remotes.Collect:InvokeServer() end)
 	end
 	task.wait(0.1)
 	return true
