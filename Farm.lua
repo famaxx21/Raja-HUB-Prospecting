@@ -1,7 +1,7 @@
 -- ==========================================
 -- 👑 RAJA HUB — FARM
 -- Auto Pan + Forever Pack Claim.
--- Shake: trigger Pan → fill turun → spam hotbar 1 → spam shake → TP sand.
+-- Shake: trigger Pan → fill turun → unequip/equip (Humanoid) → spam shake.
 -- ==========================================
 
 local H = shared.RajaHub
@@ -106,11 +106,29 @@ H.doFillPan = function()
 end
 
 -- ==========================================
--- SHAKE — TRIGGER PAN → HOTBAR SPAM → SPAM SHAKE
+-- SHAKE — TRIGGER PAN → FILL TURUN → UNEQUIP/EQUIP (Humanoid)
 -- ==========================================
 H.doShakePan = function()
 	H.equipPan()
 	task.wait(H.TELEPORT_SYNC_WAIT)
+
+	local char = H.localPlayer.Character
+	if not char then
+		H.log("❌ No character")
+		return false, "No char"
+	end
+
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		H.log("❌ No Humanoid")
+		return false, "No humanoid"
+	end
+
+	local panTool = H.getEquippedPanTool()
+	if not panTool then
+		H.log("❌ No equipped pan")
+		return false, "No pan"
+	end
 
 	local remotes = H.findPanRemotes()
 	if not remotes.Shake or not remotes.Pan then
@@ -155,14 +173,14 @@ H.doShakePan = function()
 		H.log("⚠️ Fill not dropping after 20 fires")
 	end
 
-	-- 3. Spam tombol hotbar '1' SEKALI — biar pan toggle equip/unequip.
-	H.log("→ Hotbar key 1 (press + release)")
-	pcall(function()
-		keypress(0x31)   -- VK code for '1'
-		task.wait(0.02)
-		keyrelease(0x31)
-	end)
-	task.wait(0.05)
+	-- 3. Unequip + equip cepat pakai Humanoid.
+	if started then
+		H.log("→ Fast unequip → equip (Humanoid)")
+		pcall(function() hum:UnequipTools() end)
+		task.wait(0.01)
+		pcall(function() hum:EquipTool(panTool) end)
+		task.wait(0.01)
+	end
 
 	-- 4. Spam Shake tanpa batas sampai fill = 0.
 	local lastCheck = tick()
@@ -192,7 +210,11 @@ H.doShakePan = function()
 	local t1 = tick()
 	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	-- 5. Collect final.
+	-- 5. Equip pan balik (jaga-jaga).
+	pcall(function() hum:EquipTool(panTool) end)
+	task.wait(0.2)
+
+	-- 6. Collect final.
 	local remotesAfter = H.findPanRemotes()
 	if remotesAfter.Collect then
 		pcall(function() remotesAfter.Collect:InvokeServer() end)
@@ -211,7 +233,7 @@ H.runFarmCycle = function()
 	end
 	H.log("=== Farm cycle #" .. (S.farmCycleCount + 1) .. " ===")
 
-	-- 1. Fill — di sand, pan equip.
+	-- 1. Fill — di sand.
 	H.equipPan()
 	H.log("Fill start")
 	H.teleportLocal(S.sandPos)
@@ -219,14 +241,14 @@ H.runFarmCycle = function()
 	H.doFillPan()
 	H.log("Fill done")
 
-	-- 2. TP ke water, shake.
+	-- 2. TP water, shake.
 	H.log("Shake start")
 	H.teleportLocal(S.waterPos)
 	task.wait(H.TP_SAND_WAIT)
 	H.doShakePan()
 	H.log("Shake done")
 
-	-- 3. Setelah shake (fill = 0), TP langsung ke sand.
+	-- 3. TP balik ke sand.
 	H.log("→ TP back to sand")
 	H.teleportLocal(S.sandPos)
 	task.wait(H.TP_SAND_WAIT)
