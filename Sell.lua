@@ -1,6 +1,6 @@
 -- ==========================================
 -- 👑 RAJA HUB — SELL
--- Sell ke merchant + Lock items.
+-- Sell ke merchant + Lock items + Threshold mode.
 -- ==========================================
 
 local H = shared.RajaHub
@@ -143,7 +143,7 @@ end
 -- ==========================================
 -- UI — SELL CARD
 -- ==========================================
-local sellCard = H.makeCard(H.ui.sellContent, "💰 Sell", 180)
+local sellCard = H.makeCard(H.ui.sellContent, "💰 Sell", 220)
 sellCard.LayoutOrder = 1
 
 local currentPanLbl = Instance.new("TextLabel")
@@ -157,13 +157,49 @@ currentPanLbl.Font = Enum.Font.Code
 currentPanLbl.TextSize = 10
 currentPanLbl.Parent = sellCard
 
-local sellNowBtn = H.makeBtn(sellCard, "💰 SELL NOW", 10, 48, 460, 32, THEME.blue)
-local autoSellBtn = H.makeBtn(sellCard, "🔁 AUTO SELL: OFF", 10, 86, 225, 30, THEME.accentDark)
-local intervalBtn = H.makeBtn(sellCard, "⏱️ 10s", 245, 86, 225, 30, THEME.warn, THEME.bg)
+local inventoryLbl = Instance.new("TextLabel")
+inventoryLbl.Size = UDim2.new(1, -20, 0, 16)
+inventoryLbl.Position = UDim2.new(0, 10, 0, 44)
+inventoryLbl.BackgroundTransparency = 1
+inventoryLbl.Text = "Inventory: -/-"
+inventoryLbl.TextColor3 = THEME.text
+inventoryLbl.TextXAlignment = Enum.TextXAlignment.Left
+inventoryLbl.Font = Enum.Font.Code
+inventoryLbl.TextSize = 10
+inventoryLbl.Parent = sellCard
+
+local sellNowBtn = H.makeBtn(sellCard, "💰 SELL NOW", 10, 68, 460, 30, THEME.blue)
+local autoSellBtn = H.makeBtn(sellCard, "🔁 AUTO SELL: OFF", 10, 104, 460, 30, THEME.accentDark)
+
+local threshLbl = Instance.new("TextLabel")
+threshLbl.Size = UDim2.new(0, 140, 0, 20)
+threshLbl.Position = UDim2.new(0, 10, 0, 140)
+threshLbl.BackgroundTransparency = 1
+threshLbl.Text = "Auto Sell Threshold:"
+threshLbl.TextColor3 = THEME.textDim
+threshLbl.TextXAlignment = Enum.TextXAlignment.Left
+threshLbl.Font = Enum.Font.Gotham
+threshLbl.TextSize = 10
+threshLbl.Parent = sellCard
+
+local threshInput = Instance.new("TextBox")
+threshInput.Size = UDim2.new(0, 80, 0, 24)
+threshInput.Position = UDim2.new(0, 150, 0, 138)
+threshInput.BackgroundColor3 = THEME.bg
+threshInput.BorderSizePixel = 0
+threshInput.TextColor3 = THEME.text
+threshInput.Text = tostring(S.thresholdValue)
+threshInput.Font = Enum.Font.Code
+threshInput.TextSize = 12
+threshInput.Parent = sellCard
+
+local tic = Instance.new("UICorner")
+tic.CornerRadius = UDim.new(0, 4)
+tic.Parent = threshInput
 
 local sellPanLbl = Instance.new("TextLabel")
 sellPanLbl.Size = UDim2.new(0, 100, 0, 20)
-sellPanLbl.Position = UDim2.new(0, 10, 0, 124)
+sellPanLbl.Position = UDim2.new(0, 10, 0, 170)
 sellPanLbl.BackgroundTransparency = 1
 sellPanLbl.Text = "Sell Pan ID:"
 sellPanLbl.TextColor3 = THEME.textDim
@@ -174,7 +210,7 @@ sellPanLbl.Parent = sellCard
 
 local sellPanInput = Instance.new("TextBox")
 sellPanInput.Size = UDim2.new(0, 80, 0, 24)
-sellPanInput.Position = UDim2.new(0, 100, 0, 122)
+sellPanInput.Position = UDim2.new(0, 100, 0, 168)
 sellPanInput.BackgroundColor3 = THEME.bg
 sellPanInput.BorderSizePixel = 0
 sellPanInput.TextColor3 = THEME.text
@@ -189,7 +225,7 @@ spc.Parent = sellPanInput
 
 local farmPanLbl = Instance.new("TextLabel")
 farmPanLbl.Size = UDim2.new(0, 100, 0, 20)
-farmPanLbl.Position = UDim2.new(0, 200, 0, 124)
+farmPanLbl.Position = UDim2.new(0, 200, 0, 170)
 farmPanLbl.BackgroundTransparency = 1
 farmPanLbl.Text = "Farm Pan ID:"
 farmPanLbl.TextColor3 = THEME.textDim
@@ -200,7 +236,7 @@ farmPanLbl.Parent = sellCard
 
 local farmPanInput = Instance.new("TextBox")
 farmPanInput.Size = UDim2.new(0, 80, 0, 24)
-farmPanInput.Position = UDim2.new(0, 290, 0, 122)
+farmPanInput.Position = UDim2.new(0, 290, 0, 168)
 farmPanInput.BackgroundColor3 = THEME.bg
 farmPanInput.BorderSizePixel = 0
 farmPanInput.TextColor3 = THEME.text
@@ -214,10 +250,11 @@ fpc.CornerRadius = UDim.new(0, 4)
 fpc.Parent = farmPanInput
 
 H.ui.currentPanLbl = currentPanLbl
+H.ui.inventoryLbl = inventoryLbl
 H.ui.autoSellBtn = autoSellBtn
-H.ui.intervalBtn = intervalBtn
 H.ui.sellPanInput = sellPanInput
 H.ui.farmPanInput = farmPanInput
+H.ui.threshInput = threshInput
 
 sellPanInput:GetPropertyChangedSignal("Text"):Connect(function()
 	S.sellPanIndex = sellPanInput.Text
@@ -227,6 +264,14 @@ end)
 farmPanInput:GetPropertyChangedSignal("Text"):Connect(function()
 	S.farmPanIndex = farmPanInput.Text
 	pcall(H.savePanSettings)
+end)
+
+threshInput:GetPropertyChangedSignal("Text"):Connect(function()
+	local n = tonumber(threshInput.Text)
+	if n then
+		S.thresholdValue = n
+		pcall(H.savePanSettings)
+	end
 end)
 
 -- ==========================================
@@ -527,17 +572,6 @@ end)
 -- ==========================================
 -- HANDLERS
 -- ==========================================
-local intervals = { 5, 10, 15, 30, 60 }
-local intervalIdx = 2
-S.sellInterval = intervals[intervalIdx]
-
-intervalBtn.MouseButton1Click:Connect(function()
-	intervalIdx = intervalIdx + 1
-	if intervalIdx > #intervals then intervalIdx = 1 end
-	S.sellInterval = intervals[intervalIdx]
-	intervalBtn.Text = "⏱️ " .. S.sellInterval .. "s"
-end)
-
 sellNowBtn.MouseButton1Click:Connect(function()
 	if S.sellTesting then return end
 	S.sellTesting = true
@@ -547,6 +581,7 @@ sellNowBtn.MouseButton1Click:Connect(function()
 	end)
 end)
 
+-- Auto sell: threshold-based.
 autoSellBtn.MouseButton1Click:Connect(function()
 	if S.sellAutoRunning then
 		S.sellAutoRunning = false
@@ -559,11 +594,16 @@ autoSellBtn.MouseButton1Click:Connect(function()
 		autoSellBtn.Text = "🔁 AUTO SELL: ON"
 		autoSellBtn.BackgroundColor3 = THEME.ok
 		autoSellBtn.TextColor3 = THEME.bg
-		H.log("Auto sell ON (interval " .. S.sellInterval .. "s)")
+		H.log("Auto sell ON (threshold=" .. S.thresholdValue .. ")")
 		task.spawn(function()
 			while S.sellAutoRunning and S.running do
-				H.sellWithSwap()
-				task.wait(S.sellInterval)
+				task.wait(H.INVENTORY_CHECK_INTERVAL)
+				local cur, max = H.getInventoryCount()
+				if cur and max and cur >= S.thresholdValue then
+					H.log("Inventory " .. cur .. "/" .. max .. " ≥ threshold " .. S.thresholdValue .. " — selling")
+					H.sellWithSwap()
+					task.wait(2)
+				end
 			end
 		end)
 	end
@@ -605,7 +645,7 @@ autoLockBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- LIVE UPDATE — CURRENT PAN
+-- LIVE UPDATE — CURRENT PAN + INVENTORY
 -- ==========================================
 task.spawn(function()
 	while S.running do
@@ -616,6 +656,18 @@ task.spawn(function()
 		else
 			currentPanLbl.Text = "Current pan: (none)"
 			currentPanLbl.TextColor3 = THEME.textDim
+		end
+		local cur, max = H.getInventoryCount()
+		if cur and max then
+			inventoryLbl.Text = "Inventory: " .. cur .. " / " .. max
+			if cur >= S.thresholdValue then
+				inventoryLbl.TextColor3 = THEME.warn
+			else
+				inventoryLbl.TextColor3 = THEME.text
+			end
+		else
+			inventoryLbl.Text = "Inventory: -/-"
+			inventoryLbl.TextColor3 = THEME.textDim
 		end
 		task.wait(1)
 	end
