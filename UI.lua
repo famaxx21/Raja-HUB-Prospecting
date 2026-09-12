@@ -6,6 +6,9 @@
 local H = shared.RajaHub
 if not H then error("[RajaHub] UI: shared.RajaHub missing.") end
 
+-- Pastikan H.ui ada (kalau Core.lua versi lama belum set).
+H.ui = H.ui or {}
+
 -- Suppress print / warn lokal.
 local print = function() end
 local warn = function() end
