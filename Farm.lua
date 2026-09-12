@@ -95,6 +95,7 @@ H.doFillPan = function()
 	return true
 end
 
+-- Shake replicate gold™: spam tanpa batas, delay 0.003s, cek fill tiap 0.5s.
 H.doShakePan = function()
 	H.equipPan()
 	task.wait(H.TELEPORT_SYNC_WAIT)
@@ -106,38 +107,41 @@ H.doShakePan = function()
 
 	-- Retry Pan trigger sampai return true.
 	local triggerOk = false
+	local attempts = 0
 	for i = 1, H.PAN_TRIGGER_MAX_ATTEMPTS do
+		attempts = i
 		local ok, res = pcall(function() return remotes.Pan:InvokeServer() end)
 		if ok and res == true then triggerOk = true break end
 		task.wait(H.PAN_TRIGGER_RETRY_DELAY)
 	end
 	if not triggerOk then
-		H.log("❌ Pan trigger failed after " .. H.PAN_TRIGGER_MAX_ATTEMPTS .. " attempts")
+		H.log("❌ Pan trigger failed after " .. attempts .. " attempts")
 		return false, "Pan trigger failed"
 	end
+	H.log("Pan trigger OK (" .. attempts .. " attempts)")
 	task.wait(H.PAN_TRIGGER_WAIT)
 
+	-- Spam Shake TANPA BATAS sampai fill = 0.
+	-- Cek fill tiap H.SHAKE_CHECK_INTERVAL_SEC (0.5s).
 	local lastCheck = tick()
-local clickCount = 0
+	local clickCount = 0
+	local t0 = tick()
 
-while S.running do
-	pcall(function() remotes.Shake:FireServer() end)
-	clickCount = clickCount + 1
+	while S.running do
+		pcall(function() remotes.Shake:FireServer() end)
+		clickCount = clickCount + 1
+		task.wait(H.SHAKE_DELAY)
 
-	-- Yield tiap N fire biar nggak freeze.
-	if H.SHAKE_YIELD_EVERY > 0 and clickCount % H.SHAKE_YIELD_EVERY == 0 then
-		task.wait()
+		if tick() - lastCheck >= H.SHAKE_CHECK_INTERVAL_SEC then
+			lastCheck = tick()
+			local c, _ = H.getFill()
+			if c == 0 then break end
+		end
 	end
 
-	-- Cek fill tiap 0.5 detik.
-	if tick() - lastCheck >= 0.5 then
-		lastCheck = tick()
-		local c, _ = H.getFill()
-		if c == 0 then break end
-	end
-end
+	local t1 = tick()
+	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	H.log("Shake done: " .. clickCount .. " fires")
 	if remotes.Collect then pcall(function() remotes.Collect:InvokeServer() end) end
 	task.wait(0.1)
 	return true
@@ -398,11 +402,21 @@ setWaterBtn.MouseButton1Click:Connect(function()
 end)
 
 tpSandBtn.MouseButton1Click:Connect(function()
-	if S.sandPos then H.teleportLocal(S.sandPos) end
+	if S.sandPos then
+		H.teleportLocal(S.sandPos)
+		H.log("TP to sand")
+	else
+		H.log("❌ Sand not set")
+	end
 end)
 
 tpWaterBtn.MouseButton1Click:Connect(function()
-	if S.waterPos then H.teleportLocal(S.waterPos) end
+	if S.waterPos then
+		H.teleportLocal(S.waterPos)
+		H.log("TP to water")
+	else
+		H.log("❌ Water not set")
+	end
 end)
 
 runFarmBtn.MouseButton1Click:Connect(function()
