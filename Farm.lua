@@ -117,16 +117,19 @@ H.doShakePan = function()
 	end
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	-- Spam Shake dengan delay 0.003s (325 fire/detik, sama kayak gold™).
--- Cek fill tiap 0.5 detik (bukan 1 detik) biar responsif.
-local lastCheck = tick()
+	local lastCheck = tick()
 local clickCount = 0
 
 while S.running do
 	pcall(function() remotes.Shake:FireServer() end)
 	clickCount = clickCount + 1
-	task.wait(H.SHAKE_DELAY)
 
+	-- Yield tiap N fire biar nggak freeze.
+	if H.SHAKE_YIELD_EVERY > 0 and clickCount % H.SHAKE_YIELD_EVERY == 0 then
+		task.wait()
+	end
+
+	-- Cek fill tiap 0.5 detik.
 	if tick() - lastCheck >= 0.5 then
 		lastCheck = tick()
 		local c, _ = H.getFill()
