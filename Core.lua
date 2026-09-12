@@ -50,12 +50,14 @@ H.unlockAll = unlockAll
 -- ==========================================
 H.DEFAULT_SELL_PAN = "0"
 H.DEFAULT_FARM_PAN = "153"
+H.DEFAULT_THRESHOLD = 1000
 H.EQUIP_WAIT = 0.5
 H.SELL_WAIT = 0.5
 H.AFTER_TP_WAIT = 0.5
 H.LOCK_DELAY = 0.05
 H.UNLOCK_WAIT = 1
 H.TELEPORT_OFFSET = Vector3.new(0, 3, 0)
+H.INVENTORY_CHECK_INTERVAL = 1
 
 -- Pan constants.
 H.FILL_MAX_LOOPS = 60
@@ -133,7 +135,7 @@ H.S = {
 	sellTesting = false,
 	sellPanIndex = H.DEFAULT_SELL_PAN,
 	farmPanIndex = H.DEFAULT_FARM_PAN,
-	sellInterval = 10,
+	thresholdValue = H.DEFAULT_THRESHOLD,
 
 	-- Farm.
 	farmLoopRunning = false,
@@ -220,6 +222,21 @@ H.getCurrentPan = function()
 	return nil
 end
 
+-- Baca inventory count dari ToolUI.
+H.getInventoryCount = function()
+	local pg = H.localPlayer:FindFirstChild("PlayerGui")
+	if not pg then return nil, nil end
+	local toolUI = pg:FindFirstChild("ToolUI")
+	if not toolUI then return nil, nil end
+	local fp = toolUI:FindFirstChild("FillingPan")
+	if not fp then return nil, nil end
+	local invSpace = fp:FindFirstChild("InventorySpace")
+	if not invSpace then return nil, nil end
+	local cur, max = invSpace.Text:match("(%d+)/(%d+)")
+	if cur and max then return tonumber(cur), tonumber(max) end
+	return nil, nil
+end
+
 H.getInventory = function()
 	local ok, data = pcall(function() return H.getStorageData:InvokeServer() end)
 	if ok and type(data) == "table" then
@@ -275,7 +292,11 @@ H.loadSelection = function()
 end
 
 H.savePanSettings = function()
-	local data = { sellPan = H.S.sellPanIndex, farmPan = H.S.farmPanIndex }
+	local data = {
+		sellPan = H.S.sellPanIndex,
+		farmPan = H.S.farmPanIndex,
+		threshold = H.S.thresholdValue,
+	}
 	local ok, encoded = pcall(function() return H.httpService:JSONEncode(data) end)
 	if ok then pcall(function() writefile(H.PAN_SETTINGS_FILE, encoded) end) end
 end
@@ -288,6 +309,7 @@ H.loadPanSettings = function()
 	if ok2 and type(decoded) == "table" then
 		if decoded.sellPan then H.S.sellPanIndex = decoded.sellPan end
 		if decoded.farmPan then H.S.farmPanIndex = decoded.farmPan end
+		if decoded.threshold then H.S.thresholdValue = decoded.threshold end
 	end
 end
 
