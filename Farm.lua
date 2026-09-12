@@ -1,7 +1,7 @@
 -- ==========================================
 -- 👑 RAJA HUB — FARM
 -- Auto Pan + Forever Pack Claim.
--- Exploit: Shake tanpa minigame (unequip → spam → equip).
+-- Exploit: Shake tanpa minigame (unequip saat fill mulai turun).
 -- ==========================================
 
 local H = shared.RajaHub
@@ -42,7 +42,6 @@ H.equipPan = function()
 	return false
 end
 
--- Cari pan yang sedang dipegang.
 H.getEquippedPanTool = function()
 	local char = H.localPlayer.Character
 	if not char then return nil end
@@ -71,13 +70,12 @@ H.findPanRemotes = function()
 	return list
 end
 
--- Cari remote Equip/Unequip dari CustomBackpack.
 H.getCustomBackpackRemotes = function()
-	local customBP = H.replicatedStorage:FindFirstChild("Remotes")
-	if not customBP then return nil, nil end
-	customBP = customBP:FindFirstChild("CustomBackpack")
-	if not customBP then return nil, nil end
-	return customBP:FindFirstChild("EquipRemote"), customBP:FindFirstChild("UnequipRemote")
+	local r = H.replicatedStorage:FindFirstChild("Remotes")
+	if not r then return nil, nil end
+	local cb = r:FindFirstChild("CustomBackpack")
+	if not cb then return nil, nil end
+	return cb:FindFirstChild("EquipRemote"), cb:FindFirstChild("UnequipRemote")
 end
 
 H.getFill = function()
@@ -116,7 +114,7 @@ H.doFillPan = function()
 end
 
 -- ==========================================
--- SHAKE (EXPLOIT — UNEQUIP → SPAM → EQUIP)
+-- SHAKE (EXPLOIT v2 — unequip saat fill mulai turun)
 -- ==========================================
 H.doShakePan = function()
 	H.equipPan()
@@ -130,104 +128,13 @@ H.doShakePan = function()
 
 	local remotes = H.findPanRemotes()
 	if not remotes.Shake or not remotes.Pan then
-		return false, "Shake/Pan not found"
-	end
-
-	local equipRemote, unequipRemote = H.getCustomBackpackRemotes()
-
-	-- Retry Pan trigger.
-	local triggerOk = false
-	for i = 1, H.PAN_TRIGGER_MAX_ATTEMPTS do
-		local ok, res = pcall(function() return remotes.Pan:InvokeServer() end)
-		if ok and res == true then triggerOk = true break end
-		task.wait(H.PAN_TRIGGER_RETRY_DELAY)
-	end
-	if not triggerOk then
-		H.log("❌ Pan trigger failed")
-		return false, "Pan trigger failed"
-	end
-	task.wait(H.PAN_TRIGGER_WAIT)
-
-	-- Simpan fill awal.
-	local fillBefore = select(1, H.getFill())
-	H.log("Fill before: " .. tostring(fillBefore))
-
-	-- 1. Fire Shake 1x, cek apakah fill mulai turun.
-	local t0 = tick()
-	local started = false
-
-	for i = 1, 10 do   -- max 10x coba trigger fill turun
-		pcall(function() remotes.Shake:FireServer() end)
-		task.wait(0.05)
-
-		local c = select(1, H.getFill())
-		if c and fillBefore and c < fillBefore then
-			started = true
-			H.log("Fill started dropping: " .. fillBefore .. " → " .. c .. " (after " .. i .. " fires)")
-			break
-		end
-	end
-
-	if not started then
-		H.log("⚠️ Fill not dropping after 10 fires — lanjut spam tanpa unequip")
-	end
-
-	-- 2. Unequip + equip CEPAT (delay minimal).
-	if started and unequipRemote and equipRemote then
-		H.log("→ Unequip → Equip (fast)")
-		pcall(function() unequipRemote:FireServer() end)
-		task.wait(0.01)   -- delay 10ms
-		pcall(function() equipRemote:FireServer(panTool) end)
-		task.wait(0.01)   -- delay 10ms
-	end
-
-	-- 3. Spam Shake tanpa batas sampai fill = 0.
-	local lastCheck = tick()
-	local clickCount = 0
-	local batchSize = H.SHAKE_BATCH_SIZE or 50
-	local delay = H.SHAKE_DELAY or 0
-
-	while S.running do
-		for _ = 1, batchSize do
-			pcall(function() remotes.Shake:FireServer() end)
-			clickCount = clickCount + 1
-		end
-		if delay > 0 then task.wait(delay) else task.wait() end
-
-		if tick() - lastCheck >= H.SHAKE_CHECK_INTERVAL_SEC then
-			lastCheck = tick()
-			local c, _ = H.getFill()
-			if c == 0 then break end
-		end
-	end
-
-	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, tick() - t0))
-
-	-- Equip pan balik (jaga-jaga kalau belum).
-	if equipRemote then
-		pcall(function() equipRemote:FireServer(panTool) end)
-	end
-	task.wait(0.2)
-
-	local remotesAfter = H.findPanRemotes()
-	if remotesAfter.Collect then
-		pcall(function() remotesAfter.Collect:InvokeServer() end)
-	end
-	task.wait(0.1)
-	return true
-end
-
-	-- Ambil remote dari pan (sebelum unequip — biar tetap dapat referensi).
-	local remotes = H.findPanRemotes()
-	if not remotes.Shake or not remotes.Pan then
 		H.log("❌ Shake/Pan not found")
 		return false, "Shake/Pan not found"
 	end
 
-	-- Ambil Equip/Unequip remote.
 	local equipRemote, unequipRemote = H.getCustomBackpackRemotes()
 
-	-- Retry Pan trigger sampai return true.
+	-- 1. Trigger Pan sampai return true.
 	local triggerOk = false
 	local attempts = 0
 	for i = 1, H.PAN_TRIGGER_MAX_ATTEMPTS do
@@ -243,37 +150,56 @@ end
 	H.log("Pan trigger OK (" .. attempts .. " attempts)")
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	-- EXPLOIT: unequip pan → spam shake tanpa minigame → equip balik.
-	H.log("→ Unequip pan (bypass minigame)")
-	if unequipRemote then
-		pcall(function() unequipRemote:FireServer() end)
-	else
-		H.log("⚠️ UnequipRemote not found, fallback ke equip in-hand")
-	end
-	task.wait(0.1)
+	-- 2. Simpan fill awal.
+	local fillBefore = select(1, H.getFill())
+	H.log("Fill before: " .. tostring(fillBefore))
 
+	-- 3. Fire Shake 1x-1x + cek apakah fill mulai turun.
+	local started = false
+	local t0 = tick()
+	for i = 1, 20 do   -- max 20x attempt
+		pcall(function() remotes.Shake:FireServer() end)
+		task.wait(0.03)
+
+		local c = select(1, H.getFill())
+		if c and fillBefore and c < fillBefore then
+			started = true
+			H.log("Fill dropping: " .. fillBefore .. " → " .. c .. " (after " .. i .. " fires)")
+			break
+		end
+	end
+
+	if not started then
+		H.log("⚠️ Fill not dropping after 20 fires — spam tanpa unequip")
+	end
+
+	-- 4. Kalau fill udah mulai turun → unequip + equip CEPAT.
+	if started and unequipRemote and equipRemote then
+		H.log("→ Fast unequip → equip")
+		pcall(function() unequipRemote:FireServer() end)
+		task.wait(0.01)
+		pcall(function() equipRemote:FireServer(panTool) end)
+		task.wait(0.01)
+	end
+
+	-- 5. Spam Shake tanpa batas (batch), cek fill tiap 0.5s.
 	local lastCheck = tick()
 	local clickCount = 0
-	local t0 = tick()
-	local batchSize = H.SHAKE_BATCH_SIZE or 1
-	local delay = H.SHAKE_DELAY or 0.003
+	local batchSize = H.SHAKE_BATCH_SIZE or 50
+	local delay = H.SHAKE_DELAY or 0
 
-	-- Spam Shake.
 	while S.running do
-		-- Batch: fire N sekaligus tanpa delay.
 		for _ = 1, batchSize do
 			pcall(function() remotes.Shake:FireServer() end)
 			clickCount = clickCount + 1
 		end
 
-		-- Delay (kalau > 0) atau yield 1 frame (kalau 0).
 		if delay > 0 then
 			task.wait(delay)
 		else
 			task.wait()
 		end
 
-		-- Cek fill tiap H.SHAKE_CHECK_INTERVAL_SEC.
 		if tick() - lastCheck >= H.SHAKE_CHECK_INTERVAL_SEC then
 			lastCheck = tick()
 			local c, _ = H.getFill()
@@ -284,16 +210,13 @@ end
 	local t1 = tick()
 	H.log(string.format("Shake done: %d fires in %.2fs", clickCount, t1 - t0))
 
-	-- Equip pan balik.
-	H.log("→ Equip pan back")
+	-- 6. Equip pan balik (jaga-jaga).
 	if equipRemote then
 		pcall(function() equipRemote:FireServer(panTool) end)
-	else
-		H.equipPan()
 	end
-	task.wait(0.3)
+	task.wait(0.2)
 
-	-- Collect final (perlu pan ke-equip).
+	-- 7. Collect final.
 	local remotesAfter = H.findPanRemotes()
 	if remotesAfter.Collect then
 		pcall(function() remotesAfter.Collect:InvokeServer() end)
