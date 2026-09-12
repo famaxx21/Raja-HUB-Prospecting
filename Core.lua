@@ -160,10 +160,10 @@ H.S = {
 	totems = {},
 	espObjects = {},
 	running = true,
-
-	-- UI (diisi sama UI.lua).
-	ui = {},
 }
+
+-- UI elements table — diisi dari UI.lua, Sell.lua, Farm.lua, Mod.lua.
+H.ui = {}
 
 -- ==========================================
 -- LOG SYSTEM (silent, ke log window)
@@ -309,8 +309,7 @@ H.loadModSettings = function()
 end
 
 -- ==========================================
--- SILENT MODE
+-- SILENT MODE (biar nggak muncul di Developer Console)
 -- ==========================================
--- Suppress print & warn di scope file ini (biar nggak muncul di Developer Console).
 local print = function() end
 local warn = function() end
