@@ -117,22 +117,22 @@ H.doShakePan = function()
 	end
 	task.wait(H.PAN_TRIGGER_WAIT)
 
-	-- Spam Shake TANPA BATAS sampai fill = 0. Cek fill tiap 1 detik.
-	local lastCheck = tick()
-	local clickCount = 0
+	-- Spam Shake dengan delay 0.003s (325 fire/detik, sama kayak gold™).
+-- Cek fill tiap 0.5 detik (bukan 1 detik) biar responsif.
+local lastCheck = tick()
+local clickCount = 0
 
-	while S.running do
-		pcall(function() remotes.Shake:FireServer() end)
-		clickCount = clickCount + 1
-		task.wait(H.SHAKE_DELAY)
+while S.running do
+	pcall(function() remotes.Shake:FireServer() end)
+	clickCount = clickCount + 1
+	task.wait(H.SHAKE_DELAY)
 
-		-- Cek fill tiap 1 detik.
-		if tick() - lastCheck >= 1 then
-			lastCheck = tick()
-			local c, _ = H.getFill()
-			if c == 0 then break end
-		end
+	if tick() - lastCheck >= 0.5 then
+		lastCheck = tick()
+		local c, _ = H.getFill()
+		if c == 0 then break end
 	end
+end
 
 	H.log("Shake done: " .. clickCount .. " fires")
 	if remotes.Collect then pcall(function() remotes.Collect:InvokeServer() end) end
